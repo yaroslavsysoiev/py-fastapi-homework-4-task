@@ -68,15 +68,17 @@ router = APIRouter()
 async def register_user(
         user_data: UserRegistrationRequestSchema,
         db: AsyncSession = Depends(get_db),
+        email_sender: EmailSenderInterface =
+        Depends(get_accounts_email_notificator),
 ) -> UserRegistrationResponseSchema:
     """
     Endpoint for user registration.
-
     Registers a new user, hashes their password, and assigns them to the default user group.
     If a user with the same email already exists, an HTTP 409 error is raised.
     In case of any unexpected issues during the creation process, an HTTP 500 error is returned.
 
     Args:
+        email_sender:
         user_data (UserRegistrationRequestSchema): The registration details including email and password.
         db (AsyncSession): The asynchronous database session.
 
@@ -127,6 +129,12 @@ async def register_user(
             detail="An error occurred during user creation."
         ) from e
     else:
+        activation_link = "http://127.0.0.1/accounts/activate/"
+
+        await email_sender.send_activation_email(
+            new_user.email,
+            activation_link
+        )
         return UserRegistrationResponseSchema.model_validate(new_user)
 
 
@@ -164,6 +172,8 @@ async def register_user(
 async def activate_account(
         activation_data: UserActivationRequestSchema,
         db: AsyncSession = Depends(get_db),
+        email_sender: EmailSenderInterface =
+        Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     """
     Endpoint to activate a user's account.
@@ -174,6 +184,7 @@ async def activate_account(
     or if the account is already active, an HTTP 400 error is raised.
 
     Args:
+        email_sender:
         activation_data (UserActivationRequestSchema): Contains the user's email and activation token.
         db (AsyncSession): The asynchronous database session.
 
@@ -218,6 +229,13 @@ async def activate_account(
     await db.delete(token_record)
     await db.commit()
 
+    login_link = "http://127.0.0.1/accounts/login/"
+
+    await email_sender.send_activation_complete_email(
+        str(activation_data.email),
+        login_link
+    )
+
     return MessageResponseSchema(message="User account activated successfully.")
 
 
@@ -234,6 +252,8 @@ async def activate_account(
 async def request_password_reset_token(
         data: PasswordResetRequestSchema,
         db: AsyncSession = Depends(get_db),
+        email_sender: EmailSenderInterface =
+        Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     """
     Endpoint to request a password reset token.
@@ -242,6 +262,7 @@ async def request_password_reset_token(
     Always responds with a success message to avoid leaking user information.
 
     Args:
+        email_sender:
         data (PasswordResetRequestSchema): The request data containing the user's email.
         db (AsyncSession): The asynchronous database session.
 
@@ -262,7 +283,11 @@ async def request_password_reset_token(
     reset_token = PasswordResetTokenModel(user_id=cast(int, user.id))
     db.add(reset_token)
     await db.commit()
-
+    password_reset_complete_link = "http://127.0.0.1/accounts/password-reset-complete/"
+    await email_sender.send_password_reset_email(
+        str(data.email),
+        password_reset_complete_link
+    )
     return MessageResponseSchema(
         message="If you are registered, you will receive an email with instructions."
     )
@@ -277,8 +302,8 @@ async def request_password_reset_token(
     responses={
         400: {
             "description": (
-                "Bad Request - The provided email or token is invalid, "
-                "the token has expired, or the user account is not active."
+                    "Bad Request - The provided email or token is invalid, "
+                    "the token has expired, or the user account is not active."
             ),
             "content": {
                 "application/json": {
@@ -314,6 +339,7 @@ async def request_password_reset_token(
 async def reset_password(
         data: PasswordResetCompleteRequestSchema,
         db: AsyncSession = Depends(get_db),
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     """
     Endpoint for resetting a user's password.
@@ -322,6 +348,7 @@ async def reset_password(
     Deletes the token after a successful password reset.
 
     Args:
+        email_sender:
         data (PasswordResetCompleteRequestSchema): The request data containing the user's email,
          token, and new password.
         db (AsyncSession): The asynchronous database session.
@@ -375,7 +402,12 @@ async def reset_password(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while resetting the password."
         )
+    login_link = "http://127.0.0.1/accounts/login/"
 
+    await email_sender.send_password_reset_complete_email(
+        str(data.email),
+        login_link
+    )
     return MessageResponseSchema(message="Password reset successfully.")
 
 
