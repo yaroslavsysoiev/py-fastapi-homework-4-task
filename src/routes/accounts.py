@@ -68,8 +68,7 @@ router = APIRouter()
 async def register_user(
         user_data: UserRegistrationRequestSchema,
         db: AsyncSession = Depends(get_db),
-        email_sender: EmailSenderInterface =
-        Depends(get_accounts_email_notificator),
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> UserRegistrationResponseSchema:
     """
     Endpoint for user registration.
@@ -172,8 +171,7 @@ async def register_user(
 async def activate_account(
         activation_data: UserActivationRequestSchema,
         db: AsyncSession = Depends(get_db),
-        email_sender: EmailSenderInterface =
-        Depends(get_accounts_email_notificator),
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     """
     Endpoint to activate a user's account.
@@ -252,8 +250,7 @@ async def activate_account(
 async def request_password_reset_token(
         data: PasswordResetRequestSchema,
         db: AsyncSession = Depends(get_db),
-        email_sender: EmailSenderInterface =
-        Depends(get_accounts_email_notificator),
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     """
     Endpoint to request a password reset token.
@@ -283,7 +280,7 @@ async def request_password_reset_token(
     reset_token = PasswordResetTokenModel(user_id=cast(int, user.id))
     db.add(reset_token)
     await db.commit()
-    password_reset_complete_link = "http://127.0.0.1/accounts/password-reset-complete/"
+    password_reset_complete_link = "http://127.0.0.1/accounts/reset-password/complete/"
     await email_sender.send_password_reset_email(
         str(data.email),
         password_reset_complete_link
@@ -302,8 +299,8 @@ async def request_password_reset_token(
     responses={
         400: {
             "description": (
-                    "Bad Request - The provided email or token is invalid, "
-                    "the token has expired, or the user account is not active."
+                "Bad Request - The provided email or token is invalid, "
+                "the token has expired, or the user account is not active."
             ),
             "content": {
                 "application/json": {
